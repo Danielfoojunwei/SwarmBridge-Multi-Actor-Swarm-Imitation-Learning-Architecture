@@ -1,0 +1,38 @@
+# OpenFL Swarm Coordinator
+# Privacy-preserving federated learning coordinator
+
+FROM python:3.10-slim
+
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install dependencies
+COPY pyproject.toml .
+RUN pip install --upgrade pip && \
+    pip install -e ".[dev]" && \
+    pip install openfl opacus Pyfhel crypten
+
+# Copy application code
+COPY swarm/ /app/swarm/
+COPY ml/artifact/ /app/ml/artifact/
+
+# Create workspace directories
+RUN mkdir -p /app/openfl_workspace /app/outputs
+
+# Expose ports
+EXPOSE 8081 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+# Run coordinator
+CMD ["python3", "-m", "swarm.openfl.coordinator"]

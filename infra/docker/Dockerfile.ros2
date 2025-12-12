@@ -1,0 +1,71 @@
+# ROS 2 Runtime Image for Dynamical-SIL
+# Includes: ROS 2 Humble, MoveIt2, BehaviorTree.CPP, sensor drivers
+
+FROM ros:humble-ros-base
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=humble
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    python3-pip \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool \
+    # MoveIt2 dependencies
+    ros-${ROS_DISTRO}-moveit \
+    ros-${ROS_DISTRO}-moveit-visual-tools \
+    ros-${ROS_DISTRO}-moveit-ros-planning-interface \
+    # Sensor & camera support
+    ros-${ROS_DISTRO}-camera-info-manager \
+    ros-${ROS_DISTRO}-image-transport \
+    ros-${ROS_DISTRO}-cv-bridge \
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-rtsp \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    # BehaviorTree.CPP dependencies
+    libzmq3-dev \
+    libboost-dev \
+    # Utilities
+    vim \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install BehaviorTree.CPP from source
+WORKDIR /tmp/bt_cpp
+RUN git clone https://github.com/BehaviorTree/BehaviorTree.CPP.git --branch v4.5.2 --depth 1 && \
+    cd BehaviorTree.CPP && \
+    mkdir build && cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/bt_cpp
+
+# Create workspace
+WORKDIR /opt/ros2_ws
+COPY ros2_ws/src ./src
+
+# Install rosdep dependencies
+RUN rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y
+
+# Build workspace
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
+    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# Setup entrypoint
+COPY infra/docker/ros2_entrypoint.sh /ros2_entrypoint.sh
+RUN chmod +x /ros2_entrypoint.sh
+
+ENTRYPOINT ["/ros2_entrypoint.sh"]
+CMD ["bash"]

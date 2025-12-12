@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: dynamical-sil-postgres
+    environment:
+      POSTGRES_DB: csa_registry
+      POSTGRES_USER: dynamical
+      POSTGRES_PASSWORD: dev_password_change_in_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dynamical"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # CSA Registry Service
+  registry:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.registry
+    container_name: dynamical-sil-registry
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://dynamical:dev_password_change_in_prod@postgres:5432/csa_registry
+      ARTIFACT_STORAGE_PATH: /app/artifacts
+      SECRET_KEY: dev_secret_key_change_in_prod
+      ENABLE_SIGNING: "true"
+    volumes:
+      - registry_artifacts:/app/artifacts
+      - ../../services/registry:/app/services/registry
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # OpenFL Swarm Coordinator
+  swarm-coordinator:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.swarm
+    container_name: dynamical-sil-swarm
+    environment:
+      REGISTRY_URL: http://registry:8080
+      PRIVACY_MODE: ldp  # Options: ldp, dp_sgd, he
+      AGGREGATION_STRATEGY: trimmed_mean
+    volumes:
+      - swarm_workspace:/app/openfl_workspace
+      - ../../swarm:/app/swarm
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+    depends_on:
+      - registry
+    restart: unless-stopped
+
+  # Prometheus Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dynamical-sil-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dynamical-sil-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ../monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ROS 2 Runtime (for development/testing)
+  ros2-runtime:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.ros2
+    container_name: dynamical-sil-ros2
+    network_mode: host
+    privileged: true
+    volumes:
+      - ../../ros2_ws:/opt/ros2_ws
+      - /dev:/dev
+    environment:
+      ROS_DOMAIN_ID: 42
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  postgres_data:
+  registry_artifacts:
+  swarm_workspace:
+  prometheus_data:
+  grafana_data:
