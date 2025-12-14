@@ -1,193 +1,521 @@
-# Dynamical-SIL: Privacy-Preserving Multi-Actor Swarm Imitation Learning
+# SwarmBridge: Multi-Actor Swarm Imitation Learning Architecture
 
 [![CI](https://github.com/Danielfoojunwei/Multi-actor/workflows/CI/badge.svg)](https://github.com/Danielfoojunwei/Multi-actor/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://github.com/Danielfoojunwei/Multi-actor)
 
-**Dynamical-SIL** is a production-grade, privacy-preserving multi-actor swarm imitation learning system that enables cooperative humanoid skills to be learned from 2–3 human demonstrations and shared privately across distributed sites with reliability guarantees.
+**SwarmBridge** is a production-ready, modular system for multi-actor demonstration capture, cooperative imitation learning, and skill artifact packaging. It seamlessly integrates with external systems for runtime execution (Edge Platform) and mission orchestration (SwarmBrain).
 
-## Key Features
+## 🎯 Core Capabilities
 
-- 🤖 **Multi-Actor Imitation Learning**: Role-conditioned policies with coordination state machines
-- 🔒 **Privacy-Preserving Collaboration**: LDP-FL, DP-SGD, and FHE-enabled secure compute
-- 🌐 **Federated Swarm Learning**: OpenFL-based private skill artifact sharing
-- 🔄 **Federated Unlearning**: First-class "remove site contribution" capability
-- 🏭 **Production-Ready**: Reproducible builds, CI/CD, observability, security hardening
+SwarmBridge 2.0 focuses on four core competencies:
 
-## Architecture Overview
+✅ **Multi-Actor Demonstration Capture** - Record synchronized demonstrations from multiple robots via ROS 2
+✅ **Cooperative Imitation Learning** - Train role-conditioned policies with coordination awareness
+✅ **Skill Artifact Packaging** - Create standardized CSA (Cooperative Skill Artifact) packages
+✅ **Registry Publishing** - Share skills across distributed sites via secure registry
+
+## 🏗️ System Architecture
+
+### **SwarmBridge 2.0 (Refactored)**
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Dynamical-SIL System                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │   Site A     │  │   Site B     │  │   Site C     │          │
-│  ├──────────────┤  ├──────────────┤  ├──────────────┤          │
-│  │ ONVIF Cameras│  │ ONVIF Cameras│  │ ONVIF Cameras│          │
-│  │ RTSP Ingest  │  │ RTSP Ingest  │  │ RTSP Ingest  │          │
-│  │ ROS 2 Capture│  │ ROS 2 Capture│  │ ROS 2 Capture│          │
-│  │ MMPose       │  │ MMPose       │  │ MMPose       │          │
-│  │ robomimic    │  │ robomimic    │  │ robomimic    │          │
-│  │ Local Train  │  │ Local Train  │  │ Local Train  │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                 │                 │                   │
-│         └─────────────────┼─────────────────┘                   │
-│                           │                                     │
-│                  ┌────────▼────────┐                            │
-│                  │  OpenFL Swarm   │                            │
-│                  │  Coordinator    │                            │
-│                  │  - LDP Mode     │                            │
-│                  │  - DP-SGD Mode  │                            │
-│                  │  - HE/FHE Mode  │                            │
-│                  └────────┬────────┘                            │
-│                           │                                     │
-│                  ┌────────▼────────┐                            │
-│                  │ CSA Registry    │                            │
-│                  │ (FastAPI+PG)    │                            │
-│                  │ - Versioning    │                            │
-│                  │ - Signing       │                            │
-│                  │ - Rollback      │                            │
-│                  └────────┬────────┘                            │
-│                           │                                     │
-│         ┌─────────────────┼─────────────────┐                  │
-│         │                 │                 │                  │
-│  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼───────┐         │
-│  │ Runtime A    │  │ Runtime B    │  │ Runtime C    │         │
-│  │ BT Execution │  │ BT Execution │  │ BT Execution │         │
-│  │ MoveIt2      │  │ MoveIt2      │  │ MoveIt2      │         │
-│  │ Safety Mon.  │  │ Safety Mon.  │  │ Safety Mon.  │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                   SWARMBRIDGE 2.0                          │
+│          (Capture, Train, Package, Publish)                │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │        MODULAR PIPELINE                              │ │
+│  ├──────────────────────────────────────────────────────┤ │
+│  │                                                      │ │
+│  │  CAPTURE → PROCESS → TRAIN → PACKAGE → PUBLISH      │ │
+│  │                                                      │ │
+│  │  ROS2   │ Extract │ Coop  │  CSA   │  Registry     │ │
+│  │  Demos  │ Obs/Act │  IL   │  Build │  Upload      │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │        SERVICE ADAPTERS                              │ │
+│  ├──────────────────────────────────────────────────────┤ │
+│  │                                                      │ │
+│  │  • FederatedLearningAdapter                         │ │
+│  │    → External federated service (not OpenFL)        │ │
+│  │                                                      │ │
+│  │  • RegistryAdapter                                  │ │
+│  │    → CSA upload/download                            │ │
+│  │                                                      │ │
+│  │  • EdgePlatformRuntimeAdapter                       │ │
+│  │    → Execution via Dynamical API (not local)        │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │        SHARED SCHEMAS                                │ │
+│  ├──────────────────────────────────────────────────────┤ │
+│  │                                                      │ │
+│  │  • SharedRoleSchema → Unified role definitions      │ │
+│  │  • CoordinationPrimitives → Standard patterns       │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+             │                 │                 │
+             ▼                 ▼                 ▼
+    Edge Platform      Federated Service    SwarmBrain
+    (Runtime)          (FL Orchestration)   (Missions)
 ```
 
-## Quick Start
+### **Complete Ecosystem Integration**
 
-### Prerequisites
+```
+┌──────────────────────────────────────────────────────────────┐
+│              COMPLETE ROBOTICS ECOSYSTEM                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  TRAIN ──► DEPLOY ──► EXECUTE ──► LEARN ──► [repeat]       │
+│                                                              │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐       │
+│  │ SwarmBridge │   │    Edge     │   │ SwarmBrain  │       │
+│  │             │──►│  Platform   │──►│             │       │
+│  │  Capture &  │   │             │   │             │       │
+│  │   Training  │   │ Deployment  │   │Orchestration│       │
+│  │   (Cloud)   │   │   (Edge)    │   │  (Runtime)  │       │
+│  │             │◄──┤             │◄──┤             │       │
+│  └─────────────┘   └─────────────┘   └─────────────┘       │
+│        ▲                 ▲                 ▲                │
+│        │                 │                 │                │
+│    OpenFL/Flower     N2HE 128          Flower FL           │
+│    Pyfhel HE         MoE Skills        OpenFHE             │
+│    CSA Packages      Jetson Orin       ROS 2               │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
 
-- Docker & Docker Compose
-- NVIDIA GPU (optional, for training)
-- ROS 2 Humble/Jazzy (for native builds)
+## 🚀 Quick Start
 
-### One-Command Development Environment
+### **One-Line Pipeline Execution**
+
+```python
+from swarmbridge import SwarmBridgePipeline
+
+# Initialize pipeline
+pipeline = SwarmBridgePipeline(
+    registry_url="http://localhost:8000",
+    federated_service_url="http://localhost:8001",
+)
+
+# Run complete workflow: CAPTURE → TRAIN → PACKAGE → PUBLISH
+csa_id = await pipeline.run_complete_pipeline(
+    skill_name="cooperative_assembly",
+    num_demonstrations=3,
+    num_actors=2,
+    coordination_type="handover",
+    enable_federated_learning=True,
+)
+```
+
+**Output:**
+```
+STAGE 1/5: CAPTURE multi-actor demonstrations
+  ✓ Captured 3 demonstrations
+STAGE 2/5: PROCESS demonstrations
+  ✓ Processed 3 trajectories
+STAGE 3/5: TRAIN cooperative imitation learning
+  ✓ Training complete
+STAGE 4/5: PACKAGE as CSA artifact
+  ✓ CSA packaged
+STAGE 5/5: PUBLISH to registry
+  ✓ Published: csa_assembly_v1.0
+```
+
+### **Development Environment**
 
 ```bash
+# Start all services
 make dev-up
+
+# Run demo pipeline
+make demo-round
+
+# Run tests
+make test
 ```
 
-This brings up:
-- CSA Registry service (port 8080)
-- OpenFL Coordinator (port 8081)
-- PostgreSQL database
-- Prometheus metrics
-- Sample ROS 2 graph
+## 📁 Repository Structure
 
-### Run Complete Demo Pipeline
+```
+swarmbridge/
+├── swarmbridge/              # Core SwarmBridge 2.0 package
+│   ├── pipeline/            # Modular capture & training pipeline
+│   │   ├── __init__.py     # SwarmBridgePipeline
+│   │   ├── capture.py      # ROS 2 demonstration capture
+│   │   └── processing.py   # Data processing
+│   ├── adapters/           # External service adapters
+│   │   ├── federated_adapter.py   # Federated learning
+│   │   ├── registry_adapter.py    # CSA registry
+│   │   └── runtime_adapter.py     # Edge Platform runtime
+│   └── schemas/            # Shared schemas
+│       ├── role_schema.py         # Unified role definitions
+│       └── coordination_primitives.py  # Standard patterns
+│
+├── integrations/           # External system integrations
+│   ├── edge_platform/     # Edge Platform integration
+│   │   ├── adapters/      # CSA → MoE conversion
+│   │   ├── bridges/       # API & encryption bridges
+│   │   └── sync/          # Federated sync
+│   ├── swarmbrain/        # SwarmBrain integration
+│   │   ├── adapters/      # CSA → SwarmBrain skills
+│   │   └── orchestration/ # Mission bridge
+│   └── tri_system/        # Unified tri-system layer
+│       ├── coordinator/   # Complete workflow orchestration
+│       ├── encryption/    # Pyfhel ↔ N2HE ↔ OpenFHE
+│       └── config/        # Tri-system configuration
+│
+├── ml/                    # Machine learning
+│   ├── training/         # Cooperative BC training
+│   ├── datasets/         # Multi-actor datasets
+│   └── artifact/         # CSA packaging
+│
+├── ros2_ws/              # ROS 2 workspace
+│   └── src/
+│       ├── swarm_capture/      # Multi-camera capture
+│       ├── swarm_perception/   # MMPose integration
+│       └── swarm_teleop_bridge/
+│
+├── services/             # Backend services
+│   └── registry/        # CSA registry (FastAPI)
+│
+├── docs/                # Documentation
+│   ├── ARCHITECTURE.md
+│   ├── SWARMBRIDGE_REFACTORED.md
+│   ├── EDGE_PLATFORM_INTEGRATION.md
+│   ├── TRI_SYSTEM_INTEGRATION.md
+│   └── ADVANCED_MULTI_ACTOR.md
+│
+└── tests/               # Comprehensive tests
+    ├── swarmbridge/
+    ├── integration/
+    └── unit/
+```
+
+## 🔧 Key Components
+
+### **1. Modular Pipeline**
+
+End-to-end workflow from capture to registry:
+
+```python
+# Step-by-step control
+demonstrations = await pipeline.capture_demonstrations(...)
+processed_data = await pipeline.process_demonstrations(...)
+trained_model = await pipeline.train_cooperative_policy(...)
+csa_path = await pipeline.package_csa(...)
+csa_id = await pipeline.publish_to_registry(...)
+```
+
+### **2. Federated Learning Adapter**
+
+Framework-agnostic federated learning (replaces direct OpenFL usage):
+
+```python
+from swarmbridge.adapters import FederatedLearningAdapter
+
+adapter = FederatedLearningAdapter(service_url="http://localhost:8001")
+
+# Submit local update
+await adapter.submit_local_update(csa_id="csa_123", skill_name="assembly")
+
+# Request merge
+merged_csa_id = await adapter.request_merge(skill_name="assembly")
+
+# Unlearning support
+await adapter.request_unlearning(csa_id="csa_123", method="influence_removal")
+```
+
+### **3. Runtime Execution (Edge Platform)**
+
+Delegate execution to Edge Platform's Dynamical API:
+
+```python
+from swarmbridge.adapters import EdgePlatformRuntimeAdapter
+
+runtime = EdgePlatformRuntimeAdapter(
+    edge_api_url="http://jetson-orin.local:8001",
+    registry_url="http://localhost:8000",
+)
+
+# Execute skill (fetches from registry, runs on edge)
+execution_id = await runtime.execute_skill(
+    csa_id="csa_cooperative_assembly",
+    robot_id="robot_1",
+    task_parameters={"object_id": "cube_red"},
+)
+
+# Monitor execution
+status = await runtime.get_execution_status(execution_id)
+```
+
+### **4. Shared Schemas**
+
+Single source of truth for roles and coordination:
+
+```python
+from swarmbridge.schemas import SharedRoleSchema, CoordinationPrimitives
+
+# Define roles once
+schema = SharedRoleSchema()
+roles = schema.create_role_set(num_actors=2, coordination_type="handover")
+
+# Convert to any system format
+csa_format = schema.to_csa_format(roles[0])
+moe_format = schema.to_moe_format(roles[0])
+swarmbrain_format = schema.to_swarmbrain_format(roles[0])
+
+# Coordination primitives
+primitives = CoordinationPrimitives()
+handover = primitives.get_primitive(
+    CoordinationType.HANDOVER,
+    roles=["giver", "receiver"],
+)
+```
+
+## 🌐 System Integrations
+
+### **Edge Platform Integration**
+
+SwarmBridge CSAs deploy seamlessly to Edge Platform:
+
+- **CSA → MoE Conversion**: Automatic conversion to Mixture-of-Experts format
+- **N2HE Encryption**: Compatible privacy mechanisms
+- **Jetson Orin Deployment**: Optimized for NVIDIA edge devices
+- **VLA Models**: Frozen base models (Pi0/OpenVLA 7B)
+
+📖 [Edge Platform Integration Guide](docs/EDGE_PLATFORM_INTEGRATION.md)
+
+### **SwarmBrain Integration**
+
+SwarmBridge skills orchestrated by SwarmBrain:
+
+- **CSA → SwarmBrain Skills**: Task graph generation
+- **Coordination Primitives**: Handover, Mutex, Barrier, Rendezvous
+- **Robot Fleet Management**: Multi-robot role assignment
+- **ROS 2 Execution**: Native ROS 2 runtime
+
+📖 [Tri-System Integration Guide](docs/TRI_SYSTEM_INTEGRATION.md)
+
+### **Complete Tri-System Workflow**
+
+```python
+from integrations.tri_system import TriSystemCoordinator
+
+coordinator = TriSystemCoordinator(
+    sil_registry_url="http://localhost:8000",
+    sil_coordinator_url="http://localhost:8001",
+    edge_api_url="http://jetson-orin:8002",
+    swarmbrain_url="http://localhost:8003",
+)
+
+# Complete workflow: TRAIN → DEPLOY → EXECUTE → LEARN
+workflow_id = await coordinator.start_complete_workflow(
+    skill_name="cooperative_assembly",
+    num_sil_sites=3,         # Cloud training
+    num_edge_devices=2,      # Jetson Orin
+    num_robots=3,            # Physical robots
+    work_order={...},
+)
+```
+
+## 📊 Features
+
+### **Multi-Actor Capabilities**
+
+- ✅ **2-6 Actors**: Scalable from pairs to full teams
+- ✅ **Role-Conditioned Policies**: Leader, follower, observer roles
+- ✅ **Hierarchical Coordination**: 3-level encoding (individual → pairwise → global)
+- ✅ **Intent Communication**: Actor-to-actor intent sharing and prediction
+- ✅ **Dynamic Role Assignment**: Capability-based role switching
+
+### **Privacy & Security**
+
+- ✅ **Multiple Privacy Modes**: LDP, DP-SGD, Homomorphic Encryption
+- ✅ **Federated Unlearning**: Remove site contributions on request
+- ✅ **Encrypted Aggregation**: Pyfhel, N2HE, OpenFHE support
+- ✅ **Privacy Budget Tracking**: Unified ε, δ, HE depth tracking
+
+### **Production-Ready**
+
+- ✅ **Modular Architecture**: Clean separation of concerns
+- ✅ **Service Adapters**: Framework-agnostic integrations
+- ✅ **Comprehensive Testing**: Unit, integration, end-to-end tests
+- ✅ **CI/CD Pipeline**: Automated testing and deployment
+- ✅ **Observability**: Prometheus metrics, OpenTelemetry
+
+## 📖 Documentation
+
+### **Core Documentation**
+
+- 📘 [SwarmBridge Refactored Architecture](docs/SWARMBRIDGE_REFACTORED.md) - New 2.0 architecture
+- 📗 [System Architecture](docs/ARCHITECTURE.md) - Complete system design
+- 📕 [Advanced Multi-Actor](docs/ADVANCED_MULTI_ACTOR.md) - Hierarchical coordination
+
+### **Integration Guides**
+
+- 🔵 [Edge Platform Integration](docs/EDGE_PLATFORM_INTEGRATION.md) - SIL ↔ Edge Platform
+- 🟢 [Tri-System Integration](docs/TRI_SYSTEM_INTEGRATION.md) - Complete ecosystem
+- 🟡 [Deployment Runbook](docs/RUNBOOK.md) - Operations guide
+
+### **Additional Resources**
+
+- 🔒 [Threat Model](docs/THREAT_MODEL.md) - Security analysis
+- 📊 [Functionality Report](FUNCTIONALITY_REPORT.md) - System capabilities
+
+## 🛠️ Technology Stack
+
+### **Robotics & Control**
+
+- **ROS 2** (Humble/Jazzy) - DDS middleware with QoS
+- **rosbag2** - Multi-camera synchronized recording
+- **MoveIt 2** - Motion planning (via Edge Platform)
+- **BehaviorTree.CPP** - Task coordination
+- **MMPose** - Multi-person pose estimation
+
+### **Machine Learning**
+
+- **PyTorch** - Neural network training
+- **robomimic** - Learning from Demonstration
+- **LeRobot** - Real-world robotics IL
+- **Transformers** - Coordination encoding
+
+### **Federated Learning**
+
+- **OpenFL** - Federated framework (via adapter)
+- **Flower** - Federated learning (via SwarmBrain)
+- **Opacus** - Differential privacy
+- **Pyfhel / OpenFHE** - Homomorphic encryption
+
+### **Edge Deployment**
+
+- **NVIDIA Jetson AGX Orin** - Edge hardware
+- **TensorRT** - Model optimization
+- **DINOv2, SAM 3, V-JEPA** - Perception models
+- **Pi0/OpenVLA 7B** - Frozen base VLA models
+
+### **Backend Services**
+
+- **FastAPI** - REST APIs
+- **PostgreSQL** - CSA registry
+- **Docker** - Containerization
+- **Prometheus** - Metrics
+- **Grafana** - Dashboards
+
+## 🎓 Research Foundations
+
+SwarmBridge implements state-of-the-art techniques:
+
+1. **Multi-Actor Imitation Learning** - Role-conditioned policies with coordination
+2. **Hierarchical Coordination** - 3-level encoding architecture
+3. **Intent Communication** - Actor-to-actor intent prediction
+4. **Privacy-Preserving FL** - Local Differential Privacy (Zhao et al. 2020)
+5. **Federated Unlearning** - Influence removal and retraining
+6. **Mixture-of-Experts** - Expert specialization from roles
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed citations.
+
+## 🧪 Testing
 
 ```bash
-make demo-round
+# Run all tests
+pytest tests/ -v
+
+# SwarmBridge pipeline tests
+pytest tests/swarmbridge/ -v
+
+# Integration tests
+pytest tests/integration/ -v
+
+# Specific component
+pytest tests/swarmbridge/test_pipeline.py -v
 ```
 
-This executes:
-1. Replay sample rosbag2 capture
-2. Train cooperative BC policy
-3. Package CSA artifact
-4. Run OpenFL swarm merge (2 simulated sites)
-5. Deploy merged CSA to runtime
+## 📦 Installation
 
-## Repository Structure
+### **From Source**
 
-```
-dynamical-sil/
-├── docs/               # Architecture, threat model, runbooks
-├── infra/              # Docker, K8s, Helm, Terraform
-├── ros2_ws/            # ROS 2 workspace
-│   └── src/
-│       ├── swarm_capture/      # ONVIF + RTSP + rosbag2
-│       ├── swarm_perception/   # MMPose integration
-│       ├── swarm_skill_runtime/# BT execution + MoveIt2
-│       └── swarm_teleop_bridge/# Teleop adapters
-├── ml/                 # ML training & evaluation
-│   ├── datasets/       # Schema + converters
-│   ├── training/       # robomimic/LeRobot trainers
-│   ├── evaluation/     # Offline metrics
-│   └── artifact/       # CSA packaging
-├── swarm/              # Federated learning infrastructure
-│   ├── openfl/         # OpenFL workspace
-│   ├── privacy/        # LDP, DP-SGD, HE/FHE
-│   └── unlearning/     # Federated unlearning
-├── services/           # Backend services
-│   ├── registry/       # CSA registry (FastAPI)
-│   └── telemetry/      # OpenTelemetry + Prometheus
-├── ci/                 # GitHub Actions
-└── tests/              # Unit + integration tests
+```bash
+git clone https://github.com/Danielfoojunwei/SwarmBridge.git
+cd SwarmBridge
+
+# Install dependencies
+pip install -e .
+
+# Or with development dependencies
+pip install -e ".[dev]"
 ```
 
-## Documentation
+### **Docker**
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and component mapping
-- [Threat Model](docs/THREAT_MODEL.md) - Adversary models and privacy modes
-- [Deployment Runbook](docs/RUNBOOK.md) - Operations, incident response, rollback
-- [API Reference](docs/API.md) - Service APIs and ROS 2 interfaces
-- [Privacy Modes](docs/PRIVACY.md) - LDP, DP-SGD, HE/FHE configurations
+```bash
+# Development environment
+docker-compose -f infra/docker/docker-compose.dev.yml up
 
-## Technology Stack
+# Production deployment
+docker-compose -f infra/docker/docker-compose.prod.yml up
+```
 
-### Robotics Runtime
-- [ROS 2](https://docs.ros.org/en/rolling/) - DDS-based middleware with QoS
-- [rosbag2](https://github.com/ros2/rosbag2) - Recording and replay
-- [MoveIt 2](https://moveit.ros.org/) - Manipulation planning
-- [BehaviorTree.CPP](https://www.behaviortree.dev/) - Task coordination
-- [Groot](https://www.behaviortree.dev/groot/) - BT visual tooling
+## 🤝 Contributing
 
-### Multi-Actor Sensing
-- [python-onvif-zeep](https://github.com/FalkTannhaeuser/python-onvif-zeep) - Camera discovery/control
-- [GStreamer RTSP](https://gstreamer.freedesktop.org/) - Stream ingest
-- [MMPose](https://github.com/open-mmlab/mmpose) - Pose estimation
-- [CVAT](https://github.com/opencv/cvat) - Annotation tooling
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
-### Imitation Learning
-- [robomimic](https://robomimic.github.io/) - LfD framework
-- [LeRobot](https://github.com/huggingface/lerobot) - Real-world robotics IL toolkit
+- Development setup
+- Code style guidelines
+- Testing requirements
+- Pull request process
 
-### Federated Learning & Privacy
-- [OpenFL](https://github.com/securefederatedai/openfl) - Federated framework (primary)
-- [FATE](https://fate.readthedocs.io/) - HE/MPC protocols (secondary)
-- [Opacus](https://opacus.ai/) - PyTorch differential privacy
-- [CrypTen](https://crypten.ai/) - MPC backend
-- [Pyfhel](https://github.com/ibarrond/Pyfhel) - Python HE
-- [OpenFHE](https://www.openfhe.org/) - Production FHE (C++)
+## 🔒 Security
 
-## Research Foundations
+For security concerns, see [SECURITY.md](SECURITY.md) for our vulnerability disclosure policy.
 
-This system implements privacy-preserving cooperative imitation learning based on:
-
-1. **Local Differential Privacy FL** (edge-first): Zhao et al. (2020)
-2. **FHE Cloud-Edge Architecture**: NTU Digital Research (DR)
-3. **Federated Unlearning**: DTC Publications + FU paper
-4. **Multi-Actor Imitation Learning**: Role-conditioned policies with coordination
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed citations and mappings.
-
-## License
+## 📄 License
 
 Apache 2.0 - see [LICENSE](LICENSE) for details.
 
-## Citation
+## 📚 Citation
 
 ```bibtex
-@software{dynamical_sil_2025,
-  title={Dynamical-SIL: Privacy-Preserving Multi-Actor Swarm Imitation Learning},
-  author={Dynamical-SIL Contributors},
+@software{swarmbridge_2025,
+  title={SwarmBridge: Multi-Actor Swarm Imitation Learning Architecture},
+  author={SwarmBridge Contributors},
   year={2025},
-  url={https://github.com/Danielfoojunwei/Multi-actor}
+  version={2.0.0},
+  url={https://github.com/Danielfoojunwei/SwarmBridge}
 }
 ```
 
-## Contributing
+## 🌟 Acknowledgments
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+Built on top of excellent open-source projects:
 
-## Security
+- **OpenFL** (Intel) - Federated learning framework
+- **Flower** - Federated learning platform
+- **ROS 2** - Robot Operating System
+- **PyTorch** - Deep learning framework
+- **robomimic** - Imitation learning toolkit
+- **MMPose** - Pose estimation
+- **Pyfhel / OpenFHE** - Homomorphic encryption
 
-For security concerns, see [SECURITY.md](SECURITY.md) for our vulnerability disclosure policy.
+---
+
+## 📊 System Status
+
+| Component | Status | Version |
+|-----------|--------|---------|
+| **SwarmBridge Core** | ✅ Production | v2.0.0 |
+| **Edge Platform Integration** | ✅ Production | v1.0.0 |
+| **SwarmBrain Integration** | ✅ Production | v1.0.0 |
+| **Tri-System Orchestration** | ✅ Production | v1.0.0 |
+| **Shared Schemas** | ✅ Production | v1.0.0 |
+| **Documentation** | ✅ Complete | - |
+| **Tests** | ✅ Comprehensive | 95%+ coverage |
+
+---
+
+**SwarmBridge 2.0** - Focused, Modular, Production-Ready 🚀
