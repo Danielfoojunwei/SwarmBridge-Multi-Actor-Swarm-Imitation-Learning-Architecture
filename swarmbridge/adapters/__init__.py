@@ -7,12 +7,15 @@ Thin adapters for external services:
 - Edge Platform (runtime execution)
 """
 
-from .federated_adapter import FederatedLearningAdapter
-from .registry_adapter import RegistryAdapter
-from .runtime_adapter import EdgePlatformRuntimeAdapter
+from .federated_adapter import FederatedLearningAdapter, MockFederatedLearningAdapter
+from .registry_adapter import RegistryAdapter, MockRegistryAdapter
+from .runtime_adapter import EdgePlatformRuntimeAdapter, MockEdgePlatformRuntimeAdapter
 
 __all__ = [
     "FederatedLearningAdapter",
     "RegistryAdapter",
     "EdgePlatformRuntimeAdapter",
+    "MockFederatedLearningAdapter",
+    "MockRegistryAdapter",
+    "MockEdgePlatformRuntimeAdapter",
 ]

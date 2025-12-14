@@ -1,242 +1,363 @@
 """
-Federated Learning Adapter
+Federated Learning Service Adapter
 
-Replaces direct OpenFL dependencies with adapter pattern.
-Interacts with external federated learning service.
+Thin adapter for external federated learning service.
+Replaces direct OpenFL dependencies in SwarmBridge.
 
-This allows SwarmBridge to:
-- Submit local updates
-- Request merged models
-- Support unlearning
-- Track federated rounds
-
-WITHOUT depending directly on OpenFL, Flower, or other FL frameworks.
+SwarmBridge delegates federated learning to external service:
+- Submit local CSA updates
+- Request federated merge
+- Support unlearning requests
 """
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
 import httpx
+import asyncio
+from typing import Dict, Any, Optional, List
+from pathlib import Path
+import logging
 
-
-@dataclass
-class FederatedUpdate:
-    """Local update to submit to federated service"""
-    csa_id: str
-    skill_name: str
-    site_id: str
-    model_weights: bytes  # Encrypted or plaintext
-    privacy_mode: str  # "encrypted", "differential_privacy", "plaintext"
-    epsilon: Optional[float] = None
-    delta: Optional[float] = None
-
-
-@dataclass
-class FederatedRound:
-    """Federated learning round metadata"""
-    round_id: int
-    skill_name: str
-    num_participants: int
-    status: str  # "pending", "aggregating", "completed"
-    aggregated_csa_id: Optional[str] = None
+logger = logging.getLogger(__name__)
 
 
 class FederatedLearningAdapter:
     """
-    Adapter for federated learning service.
+    Adapter for external federated learning service.
 
-    Replaces direct OpenFL usage in SwarmBridge core.
+    Supports multiple FL backends:
+    - OpenFL
+    - Flower
+    - FATE
 
     Example:
         adapter = FederatedLearningAdapter(
-            service_url="http://localhost:8001"
+            service_url="http://federated-service:8001"
         )
 
-        # Submit local update
+        # Submit local CSA update
         await adapter.submit_local_update(
-            csa_id="csa_123",
-            skill_name="cooperative_assembly",
+            csa_id="handover_v1_site1",
+            skill_name="handover",
+            weights_path="./models/handover.pt",
         )
 
-        # Request merged model
-        merged_csa_id = await adapter.request_merge(
-            skill_name="cooperative_assembly",
-        )
-
-        # Unlearning
-        await adapter.request_unlearning(
-            csa_id="csa_123",
-            skill_name="cooperative_assembly",
+        # Request federated merge
+        global_csa_id = await adapter.request_merge(
+            skill_name="handover",
+            merge_strategy="fedavg",
         )
     """
 
     def __init__(
         self,
         service_url: str,
-        site_id: Optional[str] = None,
+        timeout_s: float = 30.0,
+        api_key: Optional[str] = None,
     ):
         """
         Initialize federated learning adapter.
 
         Args:
-            service_url: URL of federated learning service
-            site_id: Unique site identifier
+            service_url: Base URL of federated learning service
+            timeout_s: Request timeout
+            api_key: Optional API key for authentication
         """
         self.service_url = service_url.rstrip("/")
-        self.site_id = site_id or "swarmbridge_default"
+        self.timeout_s = timeout_s
+        self.headers = {}
+
+        if api_key:
+            self.headers["Authorization"] = f"Bearer {api_key}"
 
     async def submit_local_update(
         self,
         csa_id: str,
         skill_name: str,
-        privacy_mode: str = "encrypted",
-        epsilon: Optional[float] = None,
-        delta: Optional[float] = None,
-    ):
+        weights_path: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Submit local CSA update to federated learning service.
 
-        The service handles:
-        - Aggregation strategy
-        - Privacy mechanisms
-        - Round management
+        Args:
+            csa_id: Local CSA identifier
+            skill_name: Skill being trained
+            weights_path: Path to model weights (optional)
+            metadata: Additional metadata (site_id, training_metrics, etc.)
 
-        SwarmBridge only provides the local update.
+        Returns:
+            Submission response with update_id
         """
 
-        print(f"  Submitting local update to federated service...")
-        print(f"    CSA ID: {csa_id}")
-        print(f"    Site ID: {self.site_id}")
-        print(f"    Privacy mode: {privacy_mode}")
+        payload = {
+            "csa_id": csa_id,
+            "skill_name": skill_name,
+            "metadata": metadata or {},
+        }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self.service_url}/api/v1/federated/submit_update",
-                json={
-                    "csa_id": csa_id,
-                    "skill_name": skill_name,
-                    "site_id": self.site_id,
-                    "privacy_mode": privacy_mode,
-                    "epsilon": epsilon,
-                    "delta": delta,
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
+        files = {}
+        if weights_path and Path(weights_path).exists():
+            files["weights"] = open(weights_path, "rb")
 
-            print(f"    Round ID: {result.get('round_id')}")
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                if files:
+                    response = await client.post(
+                        f"{self.service_url}/api/v1/federated/submit",
+                        data=payload,
+                        files=files,
+                        headers=self.headers,
+                    )
+                else:
+                    response = await client.post(
+                        f"{self.service_url}/api/v1/federated/submit",
+                        json=payload,
+                        headers=self.headers,
+                    )
 
-            return result
+                response.raise_for_status()
+                result = response.json()
+
+                logger.info(
+                    f"✅ Submitted local update for {skill_name}: "
+                    f"update_id={result.get('update_id')}"
+                )
+
+                return result
+
+        except httpx.HTTPError as e:
+            logger.error(f"❌ Failed to submit local update: {e}")
+            raise
+        finally:
+            for f in files.values():
+                f.close()
 
     async def request_merge(
         self,
         skill_name: str,
-        min_participants: int = 2,
-    ) -> str:
+        merge_strategy: str = "fedavg",
+        min_updates: int = 2,
+        privacy_budget: Optional[float] = None,
+    ) -> Dict[str, Any]:
         """
         Request federated merge of skill updates.
 
+        Args:
+            skill_name: Skill to merge
+            merge_strategy: Aggregation strategy (fedavg, trimmed_mean, krum)
+            min_updates: Minimum number of updates required
+            privacy_budget: Optional DP privacy budget
+
         Returns:
-            Merged CSA ID
+            Merge response with global_csa_id
         """
 
-        print(f"  Requesting federated merge...")
-        print(f"    Skill: {skill_name}")
-        print(f"    Min participants: {min_participants}")
+        payload = {
+            "skill_name": skill_name,
+            "merge_strategy": merge_strategy,
+            "min_updates": min_updates,
+        }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{self.service_url}/api/v1/federated/request_merge",
-                json={
-                    "skill_name": skill_name,
-                    "min_participants": min_participants,
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
+        if privacy_budget:
+            payload["privacy_budget"] = privacy_budget
 
-            merged_csa_id = result["merged_csa_id"]
-            print(f"    Merged CSA: {merged_csa_id}")
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s * 3) as client:
+                response = await client.post(
+                    f"{self.service_url}/api/v1/federated/merge",
+                    json=payload,
+                    headers=self.headers,
+                )
 
-            return merged_csa_id
+                response.raise_for_status()
+                result = response.json()
+
+                logger.info(
+                    f"✅ Federated merge completed for {skill_name}: "
+                    f"global_csa_id={result.get('global_csa_id')}"
+                )
+
+                return result
+
+        except httpx.HTTPError as e:
+            logger.error(f"❌ Failed to request merge: {e}")
+            raise
 
     async def request_unlearning(
         self,
         csa_id: str,
         skill_name: str,
-        unlearning_method: str = "influence_removal",
-    ):
+        reason: str = "data_deletion_request",
+    ) -> Dict[str, Any]:
         """
-        Request unlearning of a specific contribution.
+        Request federated unlearning of specific CSA.
 
-        Supported methods:
-        - "influence_removal": Remove influence without retraining
-        - "retraining": Full retraining without this contribution
+        Supports GDPR Article 17 (Right to Erasure).
 
-        The federated service handles the unlearning logic.
+        Args:
+            csa_id: CSA to unlearn
+            skill_name: Skill name
+            reason: Reason for unlearning
+
+        Returns:
+            Unlearning response
         """
 
-        print(f"  Requesting unlearning...")
-        print(f"    CSA ID: {csa_id}")
-        print(f"    Method: {unlearning_method}")
+        payload = {
+            "csa_id": csa_id,
+            "skill_name": skill_name,
+            "reason": reason,
+        }
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            response = await client.post(
-                f"{self.service_url}/api/v1/federated/request_unlearning",
-                json={
-                    "csa_id": csa_id,
-                    "skill_name": skill_name,
-                    "site_id": self.site_id,
-                    "method": unlearning_method,
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            print(f"    Unlearning request accepted")
-            print(f"    New CSA ID: {result.get('new_csa_id')}")
-
-            return result
-
-    async def get_round_status(self, round_id: int) -> FederatedRound:
-        """Get status of a federated learning round"""
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.service_url}/api/v1/federated/round/{round_id}"
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            return FederatedRound(
-                round_id=data["round_id"],
-                skill_name=data["skill_name"],
-                num_participants=data["num_participants"],
-                status=data["status"],
-                aggregated_csa_id=data.get("aggregated_csa_id"),
-            )
-
-    async def list_available_rounds(self, skill_name: Optional[str] = None) -> List[FederatedRound]:
-        """List available federated rounds"""
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            params = {}
-            if skill_name:
-                params["skill_name"] = skill_name
-
-            response = await client.get(
-                f"{self.service_url}/api/v1/federated/rounds",
-                params=params,
-            )
-            response.raise_for_status()
-            rounds_data = response.json()
-
-            return [
-                FederatedRound(
-                    round_id=r["round_id"],
-                    skill_name=r["skill_name"],
-                    num_participants=r["num_participants"],
-                    status=r["status"],
-                    aggregated_csa_id=r.get("aggregated_csa_id"),
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s * 2) as client:
+                response = await client.post(
+                    f"{self.service_url}/api/v1/federated/unlearn",
+                    json=payload,
+                    headers=self.headers,
                 )
-                for r in rounds_data
-            ]
+
+                response.raise_for_status()
+                result = response.json()
+
+                logger.info(
+                    f"✅ Unlearning request submitted for {csa_id}: "
+                    f"status={result.get('status')}"
+                )
+
+                return result
+
+        except httpx.HTTPError as e:
+            logger.error(f"❌ Failed to request unlearning: {e}")
+            raise
+
+    async def get_merge_status(self, merge_id: str) -> Dict[str, Any]:
+        """
+        Get status of federated merge operation.
+
+        Args:
+            merge_id: Merge operation ID
+
+        Returns:
+            Merge status (pending, in_progress, completed, failed)
+        """
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                response = await client.get(
+                    f"{self.service_url}/api/v1/federated/merge/{merge_id}",
+                    headers=self.headers,
+                )
+
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPError as e:
+            logger.error(f"❌ Failed to get merge status: {e}")
+            raise
+
+    async def list_contributions(
+        self,
+        skill_name: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        List all contributions for a skill.
+
+        Args:
+            skill_name: Skill name
+
+        Returns:
+            List of contributions with metadata
+        """
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                response = await client.get(
+                    f"{self.service_url}/api/v1/federated/contributions",
+                    params={"skill_name": skill_name},
+                    headers=self.headers,
+                )
+
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPError as e:
+            logger.error(f"❌ Failed to list contributions: {e}")
+            raise
+
+
+class MockFederatedLearningAdapter(FederatedLearningAdapter):
+    """
+    Mock adapter for local development and testing.
+
+    Simulates federated learning without external service.
+    """
+
+    def __init__(self):
+        # Don't call super().__init__()
+        self.submissions = []
+        self.merges = []
+
+    async def submit_local_update(
+        self,
+        csa_id: str,
+        skill_name: str,
+        weights_path: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+
+        update_id = f"update_{len(self.submissions)}"
+
+        self.submissions.append({
+            "update_id": update_id,
+            "csa_id": csa_id,
+            "skill_name": skill_name,
+            "weights_path": weights_path,
+            "metadata": metadata,
+        })
+
+        logger.info(f"🔄 [MOCK] Submitted local update: {update_id}")
+
+        return {
+            "update_id": update_id,
+            "status": "accepted",
+        }
+
+    async def request_merge(
+        self,
+        skill_name: str,
+        merge_strategy: str = "fedavg",
+        min_updates: int = 2,
+        privacy_budget: Optional[float] = None,
+    ) -> Dict[str, Any]:
+
+        merge_id = f"merge_{len(self.merges)}"
+        global_csa_id = f"{skill_name}_global_v{len(self.merges)}"
+
+        self.merges.append({
+            "merge_id": merge_id,
+            "skill_name": skill_name,
+            "global_csa_id": global_csa_id,
+            "merge_strategy": merge_strategy,
+        })
+
+        logger.info(f"🔄 [MOCK] Federated merge: {global_csa_id}")
+
+        return {
+            "merge_id": merge_id,
+            "global_csa_id": global_csa_id,
+            "status": "completed",
+        }
+
+    async def request_unlearning(
+        self,
+        csa_id: str,
+        skill_name: str,
+        reason: str = "data_deletion_request",
+    ) -> Dict[str, Any]:
+
+        logger.info(f"🔄 [MOCK] Unlearning request: {csa_id}")
+
+        return {
+            "status": "completed",
+            "csa_id": csa_id,
+        }
