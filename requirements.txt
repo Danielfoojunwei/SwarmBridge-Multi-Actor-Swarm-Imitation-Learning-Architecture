@@ -1,0 +1,102 @@
+# ============================================================================
+# SwarmBridge Production Dependencies
+# Aligned with Edge Platform & SwarmBrain Technologies
+# ============================================================================
+
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+
+# Robotic Imitation Learning
+robomimic>=0.3.0
+gymnasium>=0.28.0
+
+# Federated Learning (aligned with SwarmBrain)
+flwr[simulation]>=1.8.0
+opacus>=1.4.0  # Differential Privacy
+
+# Privacy & Encryption
+Pyfhel>=3.4.0  # Homomorphic Encryption (aligned with SwarmBrain/OpenFHE)
+cryptography>=41.0.0
+
+# ROS 2 Integration (aligned with SwarmBrain)
+# Install separately via: sudo apt install ros-humble-desktop
+# rclpy  # Provided by ROS 2 Humble
+# rosbag2-py
+# sensor-msgs
+# geometry-msgs
+
+# Web Framework & APIs (aligned with Edge Platform)
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+httpx>=0.26.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Message Queue (aligned with SwarmBrain)
+celery>=5.3.0
+redis>=5.0.0
+pika>=1.3.2  # RabbitMQ
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+psycopg2-binary>=2.9.9
+aios
+
+qlite>=0.19.0
+
+# Data Processing
+pandas>=2.2.0
+h5py>=3.10.0
+pillow>=10.2.0
+
+# Visualization & Monitoring (aligned with SwarmBrain)
+matplotlib>=3.8.0
+tensorboard>=2.15.0
+wandb>=0.16.0  # Optional: Weights & Biases
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+
+# Development Tools
+black>=24.1.0
+ruff>=0.2.0
+mypy>=1.8.0
+pre-commit>=3.6.0
+
+# Utilities
+python-dotenv>=1.0.0
+click>=8.1.7
+tqdm>=4.66.0
+rich>=13.7.0
+loguru>=0.7.2
+pyyaml>=6.0.1
+
+# Optional: Enhanced Features
+# opencv-python>=4.9.0  # Computer vision
+# pyrealsense2>=2.54.0  # Intel RealSense cameras
+# open3d>=0.18.0  # Point cloud processing
+
+# ============================================================================
+# Installation Instructions
+# ============================================================================
+#
+# 1. Core Python dependencies:
+#    pip install -r requirements.txt
+#
+# 2. ROS 2 Humble (Ubuntu 22.04):
+#    sudo apt install ros-humble-desktop
+#    sudo apt install ros-humble-rosbag2-py
+#
+# 3. Optional - GPU acceleration:
+#    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#
+# 4. Optional - Development tools:
+#    pre-commit install
+#
+# ============================================================================
