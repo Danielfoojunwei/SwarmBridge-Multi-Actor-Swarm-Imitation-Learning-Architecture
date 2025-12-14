@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Registry service
+  - job_name: 'registry'
+    static_configs:
+      - targets: ['registry:8080']
+    metrics_path: '/metrics'
+
+  # Swarm coordinator
+  - job_name: 'swarm-coordinator'
+    static_configs:
+      - targets: ['swarm-coordinator:8081']
+    metrics_path: '/metrics'
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

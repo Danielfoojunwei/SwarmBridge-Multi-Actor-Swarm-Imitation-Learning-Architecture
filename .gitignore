@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+*.mo
+*.pot
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# ROS 2
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+*.bag
+*.db3
+
+# ML artifacts
+outputs/
+artifacts/*.tar.gz
+checkpoints/
+logs/
+wandb/
+*.pth
+*.ckpt
+*.h5
+*.hdf5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+*.log
+
+# Secrets
+.env
+.env.local
+secrets/
+*.key
+*.pem
+credentials.json
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# C++
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
