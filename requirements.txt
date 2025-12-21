@@ -51,6 +51,7 @@ qlite>=0.19.0
 pandas>=2.2.0
 h5py>=3.10.0
 pillow>=10.2.0
+scipy>=1.11.0  # For causal discovery (Granger causality tests)
 
 # Visualization & Monitoring (aligned with SwarmBrain)
 matplotlib>=3.8.0

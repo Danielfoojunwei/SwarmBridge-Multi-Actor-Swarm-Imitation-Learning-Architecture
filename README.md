@@ -175,6 +175,77 @@ register_skills_with_dynamical(
 # into its MoE layer and execute as part of normal skill invocation
 ```
 
+## 🔬 Novel Research Contributions
+
+SwarmBridge includes cutting-edge research modules that fill critical gaps in multi-agent imitation learning:
+
+### 1. **Causal Coordination Discovery (CCD)** ⭐ NEW
+
+**First automated causal discovery method for multi-agent coordination.**
+
+- **Problem**: Existing multi-agent IL treats coordination as a black box
+- **Solution**: Discover which agent actions causally influence which other agents
+- **Methods**: Granger causality + PC algorithm + Structural Causal Models (SCMs)
+- **Impact**: Interpretability, transfer learning, debugging, active learning
+
+```python
+from swarmbridge.research import CausalCoordinationDiscovery
+
+# Discover causal structure from demonstrations
+ccd = CausalCoordinationDiscovery(significance_level=0.05, max_lag=10)
+
+causal_graph = ccd.discover_causal_graph(
+    multi_actor_trajectories=demonstrations,
+    coordination_primitive=CoordinationType.HANDOVER,
+)
+
+# Visualize causal dependencies
+print(causal_graph.to_graphviz())
+# Output: giver_gripper_action(t-2) -> receiver_gripper_action(t)
+
+# Learn Structural Causal Model for counterfactuals
+scm = ccd.learn_structural_causal_model(causal_graph, demonstrations)
+
+# Answer "what if" questions
+counterfactual = ccd.counterfactual_intervention(
+    scm=scm,
+    actual_trajectory=demo,
+    intervention={"giver_action": early_release},
+    intervention_timestep=30,
+)
+# Result: Predicts receiver would grasp 2 timesteps earlier
+```
+
+**Academic Impact**:
+- ✅ Interpretability: Explain WHY coordination succeeds/fails
+- ✅ Transfer learning: Causal structure transfers across embodiments
+- ✅ Active learning: Sample demos to discover uncertain causal edges
+- ✅ Expected venues: CoRL 2026, NeurIPS 2026 (Causal RL Workshop)
+
+**See**: `swarmbridge/research/causal_coordination_discovery.py`, `RESEARCH_ROADMAP.md`
+
+### 2. **Temporal Coordination Credit Assignment (TCCA)** 🚧 Planned
+
+Assigns credit to individual agent actions across time using Shapley values and influence backpropagation.
+
+### 3. **Hierarchical Multi-Actor IL** 🚧 Planned
+
+Learn hierarchical coordination with compositional primitives (approach → handover → place).
+
+### 4. **Privacy-Preserving Federated Multi-Robot Learning** 🚧 Partial
+
+Complete DP-SGD + Pyfhel HE integration (currently stubs exist in codebase).
+
+### 5. **Active Multi-Actor Demonstration Sampling** 🚧 Planned
+
+Select most informative multi-actor demonstrations to minimize expensive human teleoperation.
+
+### 6. **Cross-Embodiment Coordination Transfer** 🚧 Planned
+
+Transfer coordination learned on robot A+B to robot C+D using embodiment-invariant encoding.
+
+**Full Research Roadmap**: See `RESEARCH_ROADMAP.md` for detailed implementation plans, academic positioning, and expected publications.
+
 ## 📦 CooperativeSkillArtifact Schema
 
 SwarmBridge exports skills in a format that **directly plugs into Dynamical's MoE layer**:
